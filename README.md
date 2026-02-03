@@ -45,9 +45,9 @@ graph TB
     end
     
     subgraph "Off-Chain (Agents)"
-        F[Agent 1\nPrivate Key]
-        G[Agent 2\nPrivate Key]
-        H[Encryption Layer\n(nacl.box/nacl.secretbox)]
+        F[Agent 1<br>Private Key]
+        G[Agent 2<br>Private Key]
+        H[Encryption Layer<br>NaCl crypto_box]
     end
     
     F -->|Register with encryption pubkey| A

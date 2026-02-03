@@ -116,13 +116,12 @@ describe("openclaw-privacy-protocol", () => {
     const recipientKeypair = ocpClient.generateEncryptionKeypair();
     
     const messageContent = "Let's build something great together!";
-    const { ciphertext, nonce } = ocpClient.encryptMessage(
+    const encryptedContent = ocpClient.encryptMessage(
       messageContent,
       recipientKeypair.secretKey.slice(32, 64),
       senderKeypair
     );
     
-    const encryptedContent = new Uint8Array([...nonce, ...ciphertext]);
     const messageId = "msg-001";
     
     const tx = await ocpClient.sendEncryptedMessage(
@@ -163,8 +162,8 @@ describe("openclaw-privacy-protocol", () => {
     const [senderBalance] = ocpClient.findShieldedBalanceAddress(owner1.publicKey, mint);
     const [recipientBalance] = ocpClient.findShieldedBalanceAddress(owner2.publicKey, mint);
     
-    const nonce = nacl.randomBytes(24);
-    const amountCommitment = ocpClient.createAmountCommitment(100, nonce);
+    const blindingFactor = ocpClient.generateBlindingFactor();
+    const amountCommitment = ocpClient.createAmountCommitment(100, blindingFactor);
     const nullifier = ocpClient.generateNullifier();
     const proof = new Uint8Array(512);
     
@@ -236,19 +235,14 @@ describe("openclaw-privacy-protocol", () => {
     
     const originalMessage = "Secret strategy for winning the hackathon!";
     
-    const { ciphertext, nonce } = ocpClient.encryptMessage(
+    const encryptedContent = ocpClient.encryptMessage(
       originalMessage,
       recipientKeypair.secretKey.slice(32, 64),
       senderKeypair
     );
     
-    const encryptedContent = new Uint8Array([...nonce, ...ciphertext]);
-    const extractedNonce = encryptedContent.slice(0, 24);
-    const extractedCiphertext = encryptedContent.slice(24);
-    
     const decryptedMessage = ocpClient.decryptMessage(
-      extractedCiphertext,
-      extractedNonce,
+      encryptedContent,
       senderKeypair.secretKey.slice(32, 64),
       recipientKeypair
     );
@@ -257,17 +251,17 @@ describe("openclaw-privacy-protocol", () => {
   });
 
   it("Generates valid amount commitments", async () => {
-    const nonce = nacl.randomBytes(24);
-    const amountCommitment = ocpClient.createAmountCommitment(500, nonce);
+    const blindingFactor = ocpClient.generateBlindingFactor();
+    const amountCommitment = ocpClient.createAmountCommitment(500, blindingFactor);
     
     expect(amountCommitment).to.be.instanceOf(Uint8Array);
     expect(amountCommitment.length).to.equal(32);
     
-    const differentNonce = nacl.randomBytes(24);
-    const differentCommitment = ocpClient.createAmountCommitment(500, differentNonce);
+    const differentBlinding = ocpClient.generateBlindingFactor();
+    const differentCommitment = ocpClient.createAmountCommitment(500, differentBlinding);
     expect(differentCommitment).to.not.deep.equal(amountCommitment);
     
-    const otherAmount = ocpClient.createAmountCommitment(1000, nonce);
+    const otherAmount = ocpClient.createAmountCommitment(1000, blindingFactor);
     expect(otherAmount).to.not.deep.equal(amountCommitment);
   });
 

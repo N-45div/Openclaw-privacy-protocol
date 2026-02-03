@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar;
-use anchor_spl::token::{TokenAccount, Mint, Token};
+use anchor_spl::token::{TokenAccount, Mint, Token, Transfer};
 use anchor_spl::associated_token::AssociatedToken;
 use std::mem::size_of;
 
@@ -245,6 +245,7 @@ pub mod openclaw_privacy_protocol {
     }
 
     pub fn close_private_channel(ctx: Context<ClosePrivateChannel>) -> Result<()> {
+        require!(!ctx.accounts.protocol_config.paused, ErrorCode::ProtocolPaused);
         let channel = &mut ctx.accounts.channel;
         require!(channel.creator == ctx.accounts.creator.key(), ErrorCode::Unauthorized);
         require!(channel.is_active, ErrorCode::ChannelInactive);
@@ -254,6 +255,67 @@ pub mod openclaw_privacy_protocol {
         emit!(PrivateChannelClosed {
             channel: channel.key(),
             creator: channel.creator,
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+        
+        Ok(())
+    }
+    
+    pub fn set_protocol_pause(
+        ctx: Context<SetProtocolPause>,
+        paused: bool,
+    ) -> Result<()> {
+        let protocol = &mut ctx.accounts.protocol_config;
+        require!(ctx.accounts.authority.key() == protocol.authority, ErrorCode::Unauthorized);
+        
+        protocol.paused = paused;
+        
+        emit!(ProtocolPauseChanged {
+            authority: ctx.accounts.authority.key(),
+            paused,
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+        
+        Ok(())
+    }
+    
+    pub fn send_devnet_tokens(
+        ctx: Context<SendDevnetTokens>,
+        amount: u64,
+    ) -> Result<()> {
+        require!(!ctx.accounts.protocol_config.paused, ErrorCode::ProtocolPaused);
+        require!(amount > 0, ErrorCode::InvalidAmount);
+        
+        let sender_token_account = &ctx.accounts.sender_token_account;
+        let recipient_token_account = &ctx.accounts.recipient_token_account;
+        
+        // Validate token accounts have correct mint
+        require!(sender_token_account.mint == ctx.accounts.mint.key(), ErrorCode::MintMismatch);
+        require!(recipient_token_account.mint == ctx.accounts.mint.key(), ErrorCode::MintMismatch);
+        
+        // Validate sender has enough balance
+        require!(sender_token_account.amount >= amount, ErrorCode::InsufficientBalance);
+        
+        // Validate sender is Signer
+        require!(ctx.accounts.sender.is_signer, ErrorCode::MissingRequiredSignature);
+        
+        // Perform the transfer
+        let cpi_accounts = Transfer {
+            from: ctx.accounts.sender_token_account.to_account_info(),
+            to: ctx.accounts.recipient_token_account.to_account_info(),
+            authority: ctx.accounts.sender.to_account_info(),
+        };
+        
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        
+        anchor_spl::token::transfer(cpi_ctx, amount)?;
+        
+        emit!(DevnetTokensSent {
+            sender: ctx.accounts.sender.key(),
+            recipient: recipient_token_account.owner,
+            mint: ctx.accounts.mint.key(),
+            amount,
             timestamp: Clock::get()?.unix_timestamp,
         });
         
@@ -377,6 +439,15 @@ pub struct ClosePrivateChannel<'info> {
     pub channel: Account<'info, PrivateChannel>,
     #[account(mut)]
     pub creator: Signer<'info>,
+    pub protocol_config: Account<'info, ProtocolConfig>,
+}
+
+#[derive(Accounts)]
+pub struct SetProtocolPause<'info> {
+    #[account(mut)]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
 }
 
 #[account]
@@ -504,6 +575,22 @@ pub struct PrivateChannelClosed {
     pub timestamp: i64,
 }
 
+#[event]
+pub struct ProtocolPauseChanged {
+    pub authority: Pubkey,
+    pub paused: bool,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct DevnetTokensSent {
+    pub sender: Pubkey,
+    pub recipient: Pubkey,
+    pub mint: Pubkey,
+    pub amount: u64,
+    pub timestamp: i64,
+}
+
 #[error_code]
 pub enum ErrorCode {
     #[msg("Protocol is paused")]
@@ -540,4 +627,10 @@ pub enum ErrorCode {
     InvalidBalanceOwner,
     #[msg("Mint tokens do not match between balance accounts")]
     MintMismatch,
+    #[msg("Invalid amount - must be greater than 0")]
+    InvalidAmount,
+    #[msg("Insufficient token balance")]
+    InsufficientBalance,
+    #[msg("Missing required signature")]
+    MissingRequiredSignature,
 }

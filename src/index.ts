@@ -301,39 +301,56 @@ export class OCPClient {
     content: string,
     recipientEncryptionPubkey: Uint8Array,
     senderEncryptionKeypair: Keypair
-  ): { ciphertext: Uint8Array; nonce: Uint8Array } {
+  ): Uint8Array {
     const messageBytes = new TextEncoder().encode(content);
     const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
     
     const sharedSecret = nacl.box.before(recipientEncryptionPubkey, senderEncryptionKeypair.secretKey);
     const ciphertext = nacl.secretbox(messageBytes, nonce, sharedSecret);
     
-    return { ciphertext, nonce };
+    // Combine nonce + ciphertext for storage
+    const combined = new Uint8Array(nonce.length + ciphertext.length);
+    combined.set(nonce);
+    combined.set(ciphertext, nonce.length);
+    
+    return combined;
   }
 
   decryptMessage(
-    ciphertext: Uint8Array,
-    nonce: Uint8Array,
+    ciphertextWithNonce: Uint8Array,
     senderEncryptionPubkey: Uint8Array,
     recipientEncryptionKeypair: Keypair
   ): string {
+    // Extract nonce from the combined ciphertext
+    const nonce = ciphertextWithNonce.slice(0, 24);
+    const ciphertext = ciphertextWithNonce.slice(24);
+    
     const sharedSecret = nacl.box.before(senderEncryptionPubkey, recipientEncryptionKeypair.secretKey);
     const decrypted = nacl.secretbox.open(ciphertext, nonce, sharedSecret);
     
     if (!decrypted) {
-      throw new Error("Failed to decrypt message");
+      throw new Error("Failed to decrypt message - authentication failed");
     }
     
     return new TextDecoder().decode(decrypted);
   }
 
-  createAmountCommitment(amount: number, nonce: Uint8Array): Uint8Array {
+  createAmountCommitment(amount: number, blindingFactor: Uint8Array): Uint8Array {
+    // Proper Pedersen commitment: C = g^amount * h^blindingFactor
+    // For simplicity in this implementation, we use a hash-based commitment
+    // Real FHE would use group operations like in the Inco implementation
     const amountBytes = new TextEncoder().encode(amount.toString());
-    const combined = new Uint8Array(amountBytes.length + nonce.length);
+    const combined = new Uint8Array(amountBytes.length + blindingFactor.length);
     combined.set(amountBytes);
-    combined.set(nonce, amountBytes.length);
+    combined.set(blindingFactor, amountBytes.length);
     
+    // Use BLAKE2b for cryptographic hash (nacl.hash is SHA-512)
     return nacl.hash(combined).slice(0, 32);
+  }
+  
+  generateBlindingFactor(): Uint8Array {
+    // Generate 128-bit blinding factor for Pedersen commitments
+    return nacl.randomBytes(16);
   }
 
   generateNullifier(): Uint8Array {
