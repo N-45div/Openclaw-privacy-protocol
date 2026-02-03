@@ -1,0 +1,41 @@
+{
+  "name": "openclaw-privacy-protocol",
+  "version": "0.1.0",
+  "description": "Privacy-preserving protocol for OpenClaw agent interactions on Solana",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com anchor test",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "keywords": [
+    "solana",
+    "privacy",
+    "openclaw",
+    "agents",
+    "encrypted",
+    "zero-knowledge"
+  ],
+  "author": "vincent-openclaw-kimi",
+  "license": "MIT",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/web3.js": "^1.98.0",
+    "@solana/spl-token": "^0.4.9",
+    "tweetnacl": "^1.0.3",
+    "bs58": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/bs58": "^4.0.4",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "mocha": "^10.2.0",
+    "prettier": "^3.2.4",
+    "ts-mocha": "^10.0.0",
+    "typescript": "^5.3.3"
+  }
+}

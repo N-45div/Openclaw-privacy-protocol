@@ -1,0 +1,25 @@
+[package]
+name = "openclaw-privacy_protocol"
+version = "0.1.0"
+description = "Privacy-preserving protocol for OpenClaw agent-to-agent interactions"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = "0.32.1"
+anchor-spl = { version = "0.32.1", features = ["token", "token_interface", "metadata"] }
+solana-program = ">=1.17, <2"
+spl-token = { version = "4.0", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "2.2", features = ["no-entrypoint"] }
+borsh = "1.5"
+borsh-derive = "1.5"
